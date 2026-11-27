@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only manifest overlay. The debug APK is the one installed on the phone, so it follows the same
+  rule as release: the launcher activity is the only exported component.
+  These two exported activities come from debug tooling libraries:
+  - PreviewActivity (compose ui-tooling): only used by Android Studio's "Run preview on device".
+  - ComponentActivity (compose ui-test-manifest): only used by instrumented Compose UI tests (none exist).
+  Delete the matching entry here if you ever need either feature.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <activity
+            android:name="androidx.compose.ui.tooling.PreviewActivity"
+            tools:ignore="MissingClass"
+            tools:node="remove" />
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            tools:node="remove" />
+    </application>
+</manifest>
