@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/icon.png" width="120" alt="Health Check icon">
+  <img src="docs/screenshots/icon.png" width="120" alt="Health Check icon">
 </p>
 
 <h1 align="center">Health Check</h1>
