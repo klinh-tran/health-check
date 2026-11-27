@@ -1,5 +1,8 @@
 package com.example.healthcheck.data
 
+import com.example.healthcheck.core.csv.DuplicateMode
+import com.example.healthcheck.core.csv.ImportPlan
+import com.example.healthcheck.core.csv.ImportPlanner
 import com.example.healthcheck.core.model.DayRecord
 import com.example.healthcheck.util.DebugLog
 import kotlinx.coroutines.CancellationException
@@ -79,6 +82,14 @@ class EntryRepository(
     }
 
     suspend fun clearDemo() = dao.deleteDemo()
+
+    /** What [importRecords] would do right now, for the confirmation dialog. Writes nothing. */
+    suspend fun previewImport(records: List<DayRecord>, mode: DuplicateMode = DuplicateMode.KEEP_EXISTING): ImportPlan =
+        ImportPlanner.plan(allRecords(), records, mode)
+
+    /** Writes already-validated imported days in one transaction. Imported days are always real data, never demo. */
+    suspend fun importRecords(records: List<DayRecord>, mode: DuplicateMode): ImportPlan =
+        dao.importDays(records.map { it.copy(isDemo = false) }, mode)
 
     /** Real data is built on; a demo row is discarded so fake values never mix with real ones. */
     private fun realOrEmpty(old: DailyEntry?, date: LocalDate) = old?.takeUnless { it.isDemo } ?: empty(date)

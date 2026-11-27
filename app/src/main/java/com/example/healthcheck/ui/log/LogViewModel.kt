@@ -3,6 +3,7 @@ package com.example.healthcheck.ui.log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.healthcheck.core.model.DayRecord
+import com.example.healthcheck.core.model.ManualEntryRules
 import com.example.healthcheck.data.EntryRepository
 import com.example.healthcheck.util.DebugLog
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +14,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -29,27 +29,15 @@ data class LogForm(
     val saving: Boolean = false,
 )
 
+/** The Log screen's validation. The rules live in [ManualEntryRules] so CSV import uses the same ones. */
 object LogValidation {
-    const val MAX_STEPS = 100_000
-    const val MAX_SLEEP = 24.0
+    const val MAX_STEPS = ManualEntryRules.MAX_STEPS
+    const val MAX_SLEEP = ManualEntryRules.MAX_SLEEP
 
     /** Returns (value, error). Blank means "no value". */
-    fun steps(text: String): Pair<Int?, String?> {
-        val t = text.trim()
-        if (t.isEmpty()) return null to null
-        val v = t.toIntOrNull() ?: return null to "Enter a whole number, e.g. 8250"
-        if (v !in 0..MAX_STEPS) return null to "Steps must be between 0 and 100,000"
-        return v to null
-    }
+    fun steps(text: String): Pair<Int?, String?> = ManualEntryRules.steps(text)
 
-    fun sleep(text: String): Pair<Double?, String?> {
-        val t = text.trim().replace(',', '.')
-        if (t.isEmpty()) return null to null
-        val v = t.toBigDecimalOrNull() ?: return null to "Enter hours, e.g. 7.5"
-        if (v.scale() > 1) return null to "Use at most one decimal, e.g. 7.5"
-        if (v < BigDecimal.ZERO || v > BigDecimal.valueOf(MAX_SLEEP)) return null to "Sleep must be between 0 and 24 hours"
-        return v.toDouble() to null
-    }
+    fun sleep(text: String): Pair<Double?, String?> = ManualEntryRules.sleep(text)
 }
 
 class LogViewModel(private val repo: EntryRepository) : ViewModel() {

@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -29,6 +31,8 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -51,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +66,7 @@ import com.example.healthcheck.BuildConfig
 import com.example.healthcheck.core.color.ColorChoice
 import com.example.healthcheck.core.color.PresetCodec
 import com.example.healthcheck.core.color.ThemeTokenGenerator
+import com.example.healthcheck.core.csv.DuplicateMode
 import com.example.healthcheck.data.ThemeMode
 import com.example.healthcheck.data.ThemeSlot
 import com.example.healthcheck.ui.components.AppCard
@@ -72,6 +78,8 @@ import com.example.healthcheck.ui.components.SectionTitle
 import com.example.healthcheck.ui.theme.AppTheme
 import com.example.healthcheck.ui.theme.toAppColors
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import kotlin.math.roundToInt
 
 @Composable
@@ -96,6 +104,13 @@ fun SettingsScreen(
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) viewModel.exportCsv(context.contentResolver, uri)
     }
+    // The system file picker grants access to the one chosen file, so no storage permission is needed.
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.readImportFile(context.contentResolver, uri)
+    }
+    val importing by viewModel.importing.collectAsStateWithLifecycle()
+    val importPreview by viewModel.importPreview.collectAsStateWithLifecycle()
+    val importError by viewModel.importError.collectAsStateWithLifecycle()
 
     val s = settings ?: return
     val choice = draft ?: s.choice(slot)
@@ -166,7 +181,14 @@ fun SettingsScreen(
                 PrimaryButton(
                     if (busy) "Exporting…" else "Export all data (CSV)",
                     onClick = { exportLauncher.launch("health-check-${LocalDate.now()}.csv") },
-                    enabled = !busy,
+                    enabled = !busy && !importing,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(10.dp))
+                SecondaryButton(
+                    if (importing) "Importing…" else "Import data (CSV)",
+                    onClick = { importLauncher.launch(IMPORT_MIME_TYPES) },
+                    enabled = !busy && !importing,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(4.dp))
@@ -208,6 +230,19 @@ fun SettingsScreen(
         )
     }
 
+    importPreview?.let { preview ->
+        ImportConfirmDialog(preview, onConfirm = viewModel::confirmImport, onDismiss = viewModel::cancelImport)
+    }
+
+    importError?.let { error ->
+        AlertDialog(
+            onDismissRequest = viewModel::importErrorShown,
+            title = { Text("Couldn't import this file") },
+            text = { Text("$error\n\nNothing on this phone was changed.") },
+            confirmButton = { TextButton(onClick = viewModel::importErrorShown) { Text("OK") } },
+        )
+    }
+
     if (showDemo && BuildConfig.DEBUG) {
         AlertDialog(
             onDismissRequest = { showDemo = false },
@@ -229,6 +264,62 @@ fun SettingsScreen(
             },
         )
     }
+}
+
+/** CSV files show up under different types depending on the app that saved them. Every file is checked anyway. */
+private val IMPORT_MIME_TYPES = arrayOf(
+    "text/csv", "text/comma-separated-values", "application/csv", "application/vnd.ms-excel", "text/plain", "text/*",
+)
+
+@Composable
+private fun ImportConfirmDialog(preview: ImportPreview, onConfirm: (DuplicateMode) -> Unit, onDismiss: () -> Unit) {
+    val c = AppTheme.colors
+    var mode by rememberSaveable(preview) { mutableStateOf(DuplicateMode.KEEP_EXISTING) }
+    val dates = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+    fun days(n: Int) = "$n day${if (n == 1) "" else "s"}"
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Import data?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val range = if (preview.first == preview.last) "on ${preview.first.format(dates)}"
+                else "from ${preview.first.format(dates)} to ${preview.last.format(dates)}"
+                Text("Found ${days(preview.days)} $range.")
+                if (preview.existing == 0) {
+                    Text("None of these dates have data on this phone yet.")
+                } else {
+                    Text(
+                        "${preview.existing} of these dates already ${if (preview.existing == 1) "has" else "have"} " +
+                            "data on this phone.",
+                    )
+                    Column(Modifier.selectableGroup()) {
+                        listOf(
+                            DuplicateMode.KEEP_EXISTING to "Keep existing days",
+                            DuplicateMode.REPLACE_EXISTING to "Replace existing days",
+                        ).forEach { (value, label) ->
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .selectable(selected = mode == value, onClick = { mode = value }, role = Role.RadioButton)
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                RadioButton(
+                                    selected = mode == value,
+                                    onClick = null,
+                                    colors = RadioButtonDefaults.colors(selectedColor = c.accent, unselectedColor = c.sub),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(label)
+                            }
+                        }
+                    }
+                }
+                if (preview.demo > 0) Text("${days(preview.demo)} of demo data will be replaced by the imported days.")
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(mode) }) { Text("Import") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

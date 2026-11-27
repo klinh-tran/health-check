@@ -4,6 +4,10 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.example.healthcheck.core.csv.DuplicateMode
+import com.example.healthcheck.core.csv.ImportPlan
+import com.example.healthcheck.core.csv.ImportPlanner
+import com.example.healthcheck.core.model.DayRecord
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -29,6 +33,20 @@ interface DailyEntryDao {
 
     @Query("DELETE FROM daily_entry WHERE isDemo = 1")
     suspend fun deleteDemo()
+
+    @Upsert
+    suspend fun upsertAll(entries: List<DailyEntry>)
+
+    /**
+     * CSV import: reads the stored days, decides what to write and writes it in ONE transaction, so the
+     * import lands completely or not at all, and no save in between can be overwritten by mistake.
+     */
+    @Transaction
+    suspend fun importDays(records: List<DayRecord>, mode: DuplicateMode): ImportPlan {
+        val plan = ImportPlanner.plan(getAll().map { it.toRecord() }, records, mode)
+        if (plan.toWrite.isNotEmpty()) upsertAll(plan.toWrite.map { it.toEntity() })
+        return plan
+    }
 
     /** Read-modify-write in one transaction so measurement and manual saves never clobber each other. */
     @Transaction

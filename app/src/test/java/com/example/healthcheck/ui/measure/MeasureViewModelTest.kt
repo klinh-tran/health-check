@@ -25,6 +25,7 @@ private class MemoryDao : DailyEntryDao {
     override suspend fun getAll() = rows.value.values.sortedBy(DailyEntry::date)
     override suspend fun get(date: LocalDate) = rows.value[date]
     override suspend fun upsert(entry: DailyEntry) { rows.value = rows.value + (entry.date to entry) }
+    override suspend fun upsertAll(entries: List<DailyEntry>) { rows.value = rows.value + entries.associateBy { it.date } }
     override suspend fun delete(date: LocalDate) { rows.value = rows.value - date }
     override suspend fun deleteAll() { rows.value = emptyMap() }
     override suspend fun deleteDemo() { rows.value = rows.value.filterValues { !it.isDemo } }

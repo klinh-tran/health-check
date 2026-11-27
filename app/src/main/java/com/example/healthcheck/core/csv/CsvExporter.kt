@@ -6,7 +6,11 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** RFC 4180-style CSV, one row per day, oldest first. Numbers use '.' regardless of phone locale. */
+/**
+ * RFC 4180-style CSV, one row per day, oldest first. Numbers use '.' regardless of phone locale.
+ * Demo days are left out: they are fake, and the file has no column to mark them, so an import would
+ * otherwise bring them back as real data.
+ */
 object CsvExporter {
     val HEADER = listOf(
         "date", "heart_rate_bpm", "hrv_rmssd_ms", "breathing_rate_per_min", "signal_quality",
@@ -17,7 +21,7 @@ object CsvExporter {
 
     fun export(records: List<DayRecord>, zone: ZoneId): String = buildString {
         append(HEADER.joinToString(",")).append("\r\n")
-        for (r in records.sortedBy { it.date }) {
+        for (r in records.filterNot { it.isDemo }.sortedBy { it.date }) {
             val cells = listOf(
                 r.date.toString(),
                 r.heartRateBpm.fmt(1),

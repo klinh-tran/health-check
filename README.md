@@ -36,7 +36,7 @@ Everything is configured from the Settings screen, with no account or internet n
 - **Colours:** use the hue, vibrancy and background tint sliders for a custom look, or pick a preset. Text switches between black and white automatically, so buttons stay readable on any colour.
 - **Companion:** choose your character, an accessory and the animation level (Off, Calm or Playful).
 - **Measurement:** an optional "Show signal details" switch that shows live signal quality while you measure.
-- **Your data:** export everything to CSV, or delete all data from the phone.
+- **Your data:** export everything to CSV, import a CSV you exported earlier (for example on a new phone), or delete all data from the phone. Import checks the whole file first and shows what it found before changing anything; for days you already have, you choose whether to keep them or replace them.
 
 <p align="center">
   <img src="docs/screenshots/settings-theme.png" height="500" alt="Theme and colour settings">
@@ -58,7 +58,7 @@ Everything is configured from the Settings screen, with no account or internet n
 
 - The only permission is **Camera**.
 - **No internet access**, no accounts and no analytics.
-- All data stays on your phone. You can export it to CSV or delete everything from Settings.
+- All data stays on your phone. You can export it to CSV, import it again, or delete everything from Settings.
 
 ## How this was made
 

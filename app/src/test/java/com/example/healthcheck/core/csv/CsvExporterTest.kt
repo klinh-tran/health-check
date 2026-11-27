@@ -39,6 +39,27 @@ class CsvExporterTest {
         assertEquals(CsvExporter.HEADER.joinToString(",") + "\r\n", CsvExporter.export(emptyList(), zone))
     }
 
+    @Test fun leavesOutDemoDaysAndKeepsTheSameColumns() {
+        val real = DayRecord(LocalDate.of(2026, 11, 25), steps = 4000)
+        val demo = DayRecord(LocalDate.of(2026, 11, 26), heartRateBpm = 60.0, hrvRmssdMs = 40.0, steps = 7000, isDemo = true)
+        val csv = CsvExporter.export(listOf(demo, real), zone)
+        assertEquals(CsvExporter.HEADER.joinToString(",") + "\r\n2026-11-25,,,,,4000,,,\r\n", csv)
+        // Only demo days: header only, the same as an empty export.
+        assertEquals(CsvExporter.export(emptyList(), zone), CsvExporter.export(listOf(demo), zone))
+        // The file still imports, and nothing fake comes back.
+        val imported = (CsvImporter.parse(csv, LocalDate.of(2026, 11, 27), zone) as CsvImporter.Result.Success).records
+        assertEquals(listOf(real), imported)
+    }
+
+    @Test fun anOlderExportThatStillContainsDemoDaysImports() {
+        // Files exported before this change could include demo days. Same columns, so they still import (as real data).
+        val older = CsvExporter.HEADER.joinToString(",") + "\r\n" +
+            "2026-11-25,,,,,4000,,,\r\n" +
+            "2026-11-26,60.0,40.0,,Good,7000,7.0,22:30,\r\n"
+        val imported = (CsvImporter.parse(older, LocalDate.of(2026, 11, 27), zone) as CsvImporter.Result.Success).records
+        assertEquals(2, imported.size)
+    }
+
     @Test fun escapesSpecialCharacters() {
         assertEquals("plain", CsvExporter.escape("plain"))
         assertEquals("\"a,b\"", CsvExporter.escape("a,b"))

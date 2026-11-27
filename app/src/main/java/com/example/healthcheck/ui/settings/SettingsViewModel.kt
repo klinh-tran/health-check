@@ -10,6 +10,9 @@ import com.example.healthcheck.core.color.ColorPreset
 import com.example.healthcheck.core.color.PresetCodec
 import com.example.healthcheck.core.companion.CompanionSettings
 import com.example.healthcheck.core.csv.CsvExporter
+import com.example.healthcheck.core.csv.CsvImporter
+import com.example.healthcheck.core.csv.DuplicateMode
+import com.example.healthcheck.core.model.DayRecord
 import com.example.healthcheck.core.model.DemoData
 import com.example.healthcheck.data.AppSettings
 import com.example.healthcheck.data.EntryRepository
@@ -17,6 +20,7 @@ import com.example.healthcheck.data.SettingsRepository
 import com.example.healthcheck.data.ThemeMode
 import com.example.healthcheck.data.ThemeSlot
 import com.example.healthcheck.util.DebugLog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,6 +32,19 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.random.Random
+
+/** A checked import file, for the confirmation dialog. */
+data class ImportPreview(
+    val records: List<DayRecord>,
+    val first: LocalDate,
+    val last: LocalDate,
+    /** Dates in the file that already have real data on this phone. */
+    val existing: Int,
+    /** Dates in the file that only have demo data on this phone (always replaced). */
+    val demo: Int,
+) {
+    val days: Int get() = records.size
+}
 
 class SettingsViewModel(
     private val settingsRepo: SettingsRepository,
@@ -113,7 +130,8 @@ class SettingsViewModel(
         _busy.value = true
         viewModelScope.launch {
             try {
-                val records = entries.allRecords()
+                // Demo days are never exported, so they aren't counted in the message either.
+                val records = entries.allRecords().filterNot { it.isDemo }
                 val csv = CsvExporter.export(records, ZoneId.systemDefault())
                 withContext(Dispatchers.IO) {
                     // "wt" truncates an existing file; some providers only support plain "w".
@@ -131,6 +149,77 @@ class SettingsViewModel(
             }
         }
     }
+
+    // ---- CSV import ----
+
+    private val _importing = MutableStateFlow(false)
+    val importing: StateFlow<Boolean> = _importing.asStateFlow()
+
+    /** A validated file waiting for the user to confirm. Nothing has been written yet. */
+    private val _importPreview = MutableStateFlow<ImportPreview?>(null)
+    val importPreview: StateFlow<ImportPreview?> = _importPreview.asStateFlow()
+
+    /** Why a file was rejected or an import failed; shown in a dialog. */
+    private val _importError = MutableStateFlow<String?>(null)
+    val importError: StateFlow<String?> = _importError.asStateFlow()
+
+    /** Reads and checks the whole file. The database is only touched later, in [confirmImport]. */
+    fun readImportFile(resolver: ContentResolver, uri: Uri) {
+        if (_importing.value || _busy.value) return
+        _importing.value = true
+        viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val bytes = (resolver.openInputStream(uri) ?: error("Could not open file")).use { CsvImporter.readLimited(it) }
+                    CsvImporter.parse(bytes, LocalDate.now(), ZoneId.systemDefault())
+                }
+                when (result) {
+                    is CsvImporter.Result.Failure -> _importError.value = result.message
+                    is CsvImporter.Result.Success -> {
+                        val plan = entries.previewImport(result.records)
+                        _importPreview.value = ImportPreview(
+                            records = result.records,
+                            first = result.records.first().date,
+                            last = result.records.last().date,
+                            existing = plan.skipped,
+                            demo = plan.replacedDemo,
+                        )
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DebugLog.e("Settings", "import read failed", e)
+                _importError.value = "Couldn't read this file. Please try again or choose another file."
+            } finally {
+                _importing.value = false
+            }
+        }
+    }
+
+    fun confirmImport(mode: DuplicateMode) {
+        val preview = _importPreview.value ?: return
+        if (_importing.value) return
+        _importPreview.value = null
+        _importing.value = true
+        viewModelScope.launch {
+            try {
+                val plan = entries.importRecords(preview.records, mode)
+                _message.value = "Imported ${plan.imported} day${if (plan.imported == 1) "" else "s"}, skipped ${plan.skipped}"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DebugLog.e("Settings", "import failed", e)
+                _importError.value = "Something went wrong while saving the imported days. Please try again."
+            } finally {
+                _importing.value = false
+            }
+        }
+    }
+
+    fun cancelImport() { _importPreview.value = null }
+
+    fun importErrorShown() { _importError.value = null }
 
     fun deleteAll() = viewModelScope.launch {
         try {
