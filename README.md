@@ -28,19 +28,30 @@ A pixel-art character on the home screen reacts to your daily result with its ow
 - **4 accessories:** hat, orange, sunglasses and bow.
 - **Animation levels:** Off, Calm or Playful. It also respects Android's "Remove animations" setting.
 
-## Make it yours
+## Settings
 
-- **Light and dark themes**, each with its own settings.
-- **Fully customisable colours:** sliders for hue, vibrancy and background tint, so you can pick a bright blue one day and purple the next. There are also presets.
-- **Readable by design:** text colour switches between black and white automatically so buttons stay readable on any colour.
-- **Companion settings:** choose the character, accessory and animation level.
+Everything is configured from the Settings screen, with no account or internet needed.
+
+- **Theme:** switch between light and dark. Each theme keeps its own colours.
+- **Colours:** use the hue, vibrancy and background tint sliders for a custom look, or pick a preset. Text switches between black and white automatically, so buttons stay readable on any colour.
+- **Companion:** choose your character, an accessory and the animation level (Off, Calm or Playful).
+- **Measurement:** an optional "Show signal details" switch that shows live signal quality while you measure.
+- **Your data:** export everything to CSV, or delete all data from the phone.
+
+<p align="center">
+  <img src="docs/screenshots/settings-theme.png" height="500" alt="Theme and colour settings">
+  <img src="docs/screenshots/settings-companion.png" height="500" alt="Companion settings">
+  <img src="docs/screenshots/settings-data.png" height="500" alt="Data settings">
+</p>
+
+## Screenshots
 
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/home.png" width="250" alt="Home">
-  <img src="docs/screenshots/measure.png" width="250" alt="Measure">
-  <img src="docs/screenshots/trends.png" width="250" alt="Trends">
+  <img src="docs/screenshots/home.png" height="500" alt="Home">
+  <img src="docs/screenshots/measure.png" height="500" alt="Measure">
+  <img src="docs/screenshots/trends.png" height="500" alt="Trends">
 </p>
 
 ## Privacy
